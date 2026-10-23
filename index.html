@@ -844,7 +844,7 @@
     // 서버에는 기존 addAction의 note 칸 하나에 "[면담·학부모 연락] 메모" 형태로 저장한다.
     const ACTION_TYPES = ['면담', '상담교사 연계', '학부모 연락', '지켜보는 중', '기타'];
     // note 칸 형식:  〔체크 261020☁️ 261021🌧️〕[면담·학부모 연락] 메모
-    //   〔체크 …〕 = 학생이 날씨를 체크한 날(yymmdd + 날씨) / [ … ] = 조치 유형 / 나머지 = 교사 메모
+    //    〔체크 …〕 = 학생이 날씨를 체크한 날(yymmdd + 날씨) / [ … ] = 조치 유형 / 나머지 = 교사 메모
     const mdOf = d => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
     function checkChipsHtml(checks) {
         return checks.map(c => `<span class="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 text-[11px] text-slate-700 mr-1 mb-1">${mdOf(c.d)} ${esc(c.w)}</span>`).join('');
@@ -971,16 +971,49 @@
     function kpBack() { if (kpBusy) return; kpBuf = kpBuf.slice(0, -1); kpRender(); kioskIdle(30000); }
     async function kpSubmit() {
         const val = kpBuf;
-        if (kpMode === 'create') { kpFirst = val; kpBuf = ''; kpMode = 'confirm'; return kpRender(); }
-        if (kpMode === 'confirm' && val !== kpFirst) { kpFirst = ''; kpBuf = ''; kpMode = 'create'; return kpRender('두 번이 달랐어요. 처음부터 다시 만들어요.'); }
+        
+        // 1) 처음 비밀번호 입력 단계
+        if (kpMode === 'create') { 
+            kpFirst = val; 
+            kpBuf = ''; 
+            kpMode = 'confirm'; 
+            return kpRender(); 
+        }
+        
+        // 2) 비밀번호 확인 단계에서 불일치 시
+        if (kpMode === 'confirm' && val !== kpFirst) { 
+            kpFirst = ''; 
+            kpBuf = ''; 
+            kpMode = 'create'; 
+            return kpRender('두 번이 달랐어요. 처음부터 다시 만들어요.'); 
+        }
+        
+        // 3) 일치할 경우: 변수 깔끔히 초기화 후 서버 전송 진행
         kpBusy = true;
+        
         try {
-            await call('studentAuth', { no: kNo, pin: val, create: kpMode === 'confirm' });
-            if (kpMode === 'confirm' && !kPinSet.includes(kNo)) kPinSet.push(kNo);
-            kPin = val; kpBusy = false; kpBuf = ''; kioskShowWeather();
+            await call('studentAuth', { no: kNo, pin: val, create: true });
+            if (!kPinSet.includes(kNo)) kPinSet.push(kNo);
+            kPin = val; 
+            
+            // 사용한 임시 변수 깔끔히 초기화
+            kpFirst = ''; 
+            kpBuf = ''; 
+            kpBusy = false; 
+            
+            kioskShowWeather();
         } catch (e) {
-            kpBusy = false; kpBuf = '';
-            if (kpMode === 'confirm') { if (/이미/.test(e.message)) { kPinSet.push(kNo); kpMode = 'enter'; } else kpMode = 'create'; kpFirst = ''; }
+            kpBusy = false; 
+            kpBuf = '';
+            if (kpMode === 'confirm') { 
+                if (/이미/.test(e.message)) { 
+                    if (!kPinSet.includes(kNo)) kPinSet.push(kNo); 
+                    kpMode = 'enter'; 
+                } else { 
+                    kpMode = 'create'; 
+                } 
+                kpFirst = ''; 
+            }
             kpRender(e.network ? '인터넷이 연결되지 않았어요. 선생님께 알려 주세요.' : e.message);
         }
     }
