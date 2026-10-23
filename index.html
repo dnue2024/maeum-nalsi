@@ -969,10 +969,10 @@
         if (kpBuf.length === 4) setTimeout(kpSubmit, 150);
     }
     function kpBack() { if (kpBusy) return; kpBuf = kpBuf.slice(0, -1); kpRender(); kioskIdle(30000); }
-    async function kpSubmit() {
+   async function kpSubmit() {
         const val = kpBuf;
         
-        // 1) 처음 비밀번호 입력 단계
+        // 1) 비밀번호 처음 작성 시 -> 두 번째 입력 단계(confirm)로 이동
         if (kpMode === 'create') { 
             kpFirst = val; 
             kpBuf = ''; 
@@ -980,7 +980,7 @@
             return kpRender(); 
         }
         
-        // 2) 비밀번호 확인 단계에서 불일치 시
+        // 2) 비밀번호 확인 작성 시 -> 불일치하면 초기화 후 재시도
         if (kpMode === 'confirm' && val !== kpFirst) { 
             kpFirst = ''; 
             kpBuf = ''; 
@@ -988,20 +988,24 @@
             return kpRender('두 번이 달랐어요. 처음부터 다시 만들어요.'); 
         }
         
-        // 3) 일치할 경우: 변수 깔끔히 초기화 후 서버 전송 진행
+        // 3) 일치하거나 로그인(enter) 단계일 때 처리
         kpBusy = true;
+        const isCreateMode = (kpMode === 'confirm'); // confirm 단계일 때만 계정 생성(create: true)
         
         try {
-            await call('studentAuth', { no: kNo, pin: val, create: true });
-            if (!kPinSet.includes(kNo)) kPinSet.push(kNo);
+            await call('studentAuth', { no: kNo, pin: val, create: isCreateMode });
+            
+            // 처음 신규 생성 성공 시 목록 추가
+            if (isCreateMode && !kPinSet.includes(kNo)) {
+                kPinSet.push(kNo);
+            }
+            
             kPin = val; 
-            
-            // 사용한 임시 변수 깔끔히 초기화
-            kpFirst = ''; 
-            kpBuf = ''; 
             kpBusy = false; 
+            kpBuf = ''; 
+            kpFirst = '';
             
-            kioskShowWeather();
+            kioskShowWeather(); // 정상 로그인 완료 후 날씨 화면으로 이동
         } catch (e) {
             kpBusy = false; 
             kpBuf = '';
